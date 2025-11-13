@@ -10,13 +10,21 @@ A Model Context Protocol (MCP) server that provides Google Calendar integration 
 - **Free/Busy Queries**: Check availability across calendars
 - **Smart Scheduling**: Natural language understanding for dates and times
 - **Inteligent Import**: Add calendar events from images, PDFs or web links
+- **Token-Based Authentication**: Support for using access tokens via X-Authorization header (no OAuth flow required)
 
 ## Quick Start
 
 ### Prerequisites
 
+Choose one of the following authentication methods:
+
+**Option A: Traditional OAuth Flow** (for local/desktop use)
 1. A Google Cloud project with the Calendar API enabled
 2. OAuth 2.0 credentials (Desktop app type)
+
+**Option B: Token-Based Authentication** (for HTTP/API use)
+1. A valid Google Calendar API access token
+2. See [Token-Based Authentication Guide](docs/token-authentication.md) for details
 
 ### Google Cloud Setup
 
@@ -158,6 +166,7 @@ Along with the normal capabilities you would expect for a calendar integration y
 ## Documentation
 
 - [Authentication Setup](docs/authentication.md) - Detailed Google Cloud setup
+- [Token-Based Authentication](docs/token-authentication.md) - Using access tokens via X-Authorization header
 - [Advanced Usage](docs/advanced-usage.md) - Multi-account, batch operations
 - [Deployment Guide](docs/deployment.md) - HTTP transport, remote access
 - [Docker Guide](docs/docker.md) - Docker deployment with stdio and HTTP modes
@@ -169,8 +178,9 @@ Along with the normal capabilities you would expect for a calendar integration y
 ## Configuration
 
 **Environment Variables:**
-- `GOOGLE_OAUTH_CREDENTIALS` - Path to OAuth credentials file
-- `GOOGLE_CALENDAR_MCP_TOKEN_PATH` - Custom token storage location (optional)
+- `GOOGLE_OAUTH_CREDENTIALS` - Path to OAuth credentials file (not required with token-based auth)
+- `GOOGLE_CALENDAR_MCP_TOKEN_PATH` - Custom token storage location (optional, not used with token-based auth)
+- `SKIP_OAUTH` - Set to `true` to disable OAuth flow and use token-based auth only (HTTP mode)
 
 **Claude Desktop Config Location:**
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
