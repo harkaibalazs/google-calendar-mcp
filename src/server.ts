@@ -101,6 +101,14 @@ export class GoogleCalendarMcpServer {
   }
 
   private async ensureAuthenticated(): Promise<void> {
+    // If OAuth was skipped, token manager won't exist
+    if (!this.tokenManager) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        "Authentication required. Server is running in token-based authentication mode. Please provide an access token via the X-Authorization header."
+      );
+    }
+    
     // Check if we already have valid tokens
     if (await this.tokenManager.validateTokens()) {
       return;
