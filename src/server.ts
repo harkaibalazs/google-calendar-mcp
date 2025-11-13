@@ -6,6 +6,8 @@ import { OAuth2Client } from "google-auth-library";
 import { initializeOAuth2Client } from './auth/client.js';
 import { AuthServer } from './auth/server.js';
 import { TokenManager } from './auth/tokenManager.js';
+import { getRequestAccessToken, hasRequestAccessToken } from './auth/requestContext.js';
+import { createOAuth2ClientFromToken } from './auth/tokenAuth.js';
 
 // Import tool registry
 import { ToolRegistry } from './tools/registry.js';
@@ -33,13 +35,25 @@ export class GoogleCalendarMcpServer {
   }
 
   async initialize(): Promise<void> {
+    // Check if we should skip OAuth initialization (e.g., when using token-based auth)
+    const skipOAuth = process.env.SKIP_OAUTH === 'true';
+    
     // 1. Initialize Authentication (but don't block on it)
-    this.oauth2Client = await initializeOAuth2Client();
-    this.tokenManager = new TokenManager(this.oauth2Client);
-    this.authServer = new AuthServer(this.oauth2Client);
-
-    // 2. Handle startup authentication based on transport type
-    await this.handleStartupAuthentication();
+    // When SKIP_OAUTH is set, we still create a minimal OAuth2Client for compatibility
+    // but don't require credentials file or token storage
+    if (skipOAuth) {
+      process.stderr.write('OAuth authentication disabled. Using token-based authentication only.\n');
+      // Create a minimal OAuth2Client that will be replaced per-request
+      const { OAuth2Client } = await import('google-auth-library');
+      this.oauth2Client = new OAuth2Client();
+    } else {
+      this.oauth2Client = await initializeOAuth2Client();
+      this.tokenManager = new TokenManager(this.oauth2Client);
+      this.authServer = new AuthServer(this.oauth2Client);
+      
+      // 2. Handle startup authentication based on transport type
+      await this.handleStartupAuthentication();
+    }
 
     // 3. Set up Modern Tool Definitions
     this.registerTools();
@@ -122,6 +136,15 @@ export class GoogleCalendarMcpServer {
   }
 
   private async executeWithHandler(handler: any, args: any): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+    // Check if we have a request-specific access token (from X-Authorization header)
+    if (hasRequestAccessToken()) {
+      const accessToken = getRequestAccessToken()!;
+      const tokenBasedClient = createOAuth2ClientFromToken(accessToken);
+      const result = await handler.runTool(args, tokenBasedClient);
+      return result;
+    }
+    
+    // Otherwise, use traditional OAuth flow
     await this.ensureAuthenticated();
     const result = await handler.runTool(args, this.oauth2Client);
     return result;
@@ -151,6 +174,7 @@ export class GoogleCalendarMcpServer {
   private setupGracefulShutdown(): void {
     const cleanup = async () => {
       try {
+        // Only stop auth server if it exists (not present in token-based mode)
         if (this.authServer) {
           await this.authServer.stop();
         }

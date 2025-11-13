@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import http from "http";
+import { runWithAccessToken } from "../auth/requestContext.js";
 
 export interface HttpTransportConfig {
   port?: number;
@@ -63,7 +64,7 @@ export class HttpTransportHandler {
       // Handle CORS
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id, X-Authorization');
       
       if (req.method === 'OPTIONS') {
         res.writeHead(200);
@@ -96,7 +97,17 @@ export class HttpTransportHandler {
       }
 
       try {
-        await transport.handleRequest(req, res);
+        // Extract X-Authorization header if present
+        const authHeader = req.headers['x-authorization'];
+        const accessToken = typeof authHeader === 'string' ? authHeader.trim() : undefined;
+        
+        // If access token is provided, run the request handler with it in context
+        if (accessToken && accessToken.length > 0) {
+          await runWithAccessToken(accessToken, () => transport.handleRequest(req, res));
+        } else {
+          // No access token, use traditional OAuth flow
+          await transport.handleRequest(req, res);
+        }
       } catch (error) {
         process.stderr.write(`Error handling request: ${error instanceof Error ? error.message : error}\n`);
         if (!res.headersSent) {
